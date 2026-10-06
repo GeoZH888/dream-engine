@@ -368,12 +368,59 @@ def space(obj: dict, night_files: tuple[str, ...], out_path: str) -> None:
 @click.argument("night_files", nargs=-1, required=True, type=click.Path(exists=True, dir_okay=False))
 @click.option("--out", "out_path", type=click.Path(dir_okay=False), default="outputs/viewer/player.html",
               show_default=True)
-def player(night_files: tuple[str, ...], out_path: str) -> None:
-    """Dream player: watch each dream like a short film, with optional narration."""
+@click.pass_obj
+def player(obj: dict, night_files: tuple[str, ...], out_path: str) -> None:
+    """Dream player: watch each dream like a short film, with optional narration.
+
+    Dreams rendered with `dream video` get a "Watch video" button; their MP4s are
+    copied next to the page under videos/.
+    """
     from dream_engine.viewer.player import write_player
 
-    out = write_player([Path(p) for p in night_files], Path(out_path))
-    click.echo(f"Wrote {out} ({out.stat().st_size // 1024} KB, {len(night_files)} nights)")
+    out = write_player([Path(p) for p in night_files], Path(out_path), Path(obj["cfg"]["video"]["out_dir"]))
+    n_videos = len(list((out.parent / "videos").rglob("*.mp4"))) if (out.parent / "videos").exists() else 0
+    click.echo(f"Wrote {out} ({out.stat().st_size // 1024} KB, {len(night_files)} nights, {n_videos} videos)")
+
+
+@main.command()
+@click.argument("night_file", type=click.Path(exists=True, dir_okay=False))
+@click.option("--stages", default=None, help="Comma-separated stages to render (default: video.stages, e.g. REM).")
+@click.option("--cycle", type=int, default=None, help="Only the dreams of this cycle.")
+@click.option("--no-voice", is_flag=True, help="Subtitles only, no narration.")
+@click.option("--out", "out_dir", type=click.Path(file_okay=False), default=None)
+@click.pass_obj
+def video(obj: dict, night_file: str, stages: str | None, cycle: int | None, no_voice: bool, out_dir) -> None:
+    """Render a night's dreams as MP4 videos: scene images, subtitles and narration."""
+    import time
+
+    from dream_engine.video.images import CachedImages, make_backend
+    from dream_engine.video.render import clip_name, concat, encode, episode_seed, plan
+
+    cfg = obj["cfg"]
+    v = cfg["video"]
+    night = json.loads(Path(night_file).read_text(encoding="utf-8"))
+    wanted = [x.strip().upper() for x in (stages.split(",") if stages else v["stages"])]
+    eps = [e for e in night["episodes"] if e.get("narrative") and e["stage"] in wanted
+           and (cycle is None or e["cycle"] == cycle)]
+    if not eps:
+        raise click.ClickException(f"No {'/'.join(wanted)} dreams with a narrative in {night_file}.")
+    stem = Path(night_file).stem
+    out = Path(out_dir or v["out_dir"]) / stem
+    images = CachedImages(make_backend(cfg), Path(v["out_dir"]) / "image_cache")
+    clips = []
+    for i, e in enumerate(eps, 1):
+        t0 = time.time()
+        name = clip_name(e)
+        click.echo(f"[{i}/{len(eps)}] cycle {e['cycle']} {e['profile']} {e['clock_time']}")
+        tl, audio = plan(e, cfg, images, episode_seed(night["seed"], e), out / "work" / name, voice=not no_voice,
+                         log=click.echo)
+        clip = encode(tl, audio, cfg, out / f"{name}.mp4")
+        clips.append(clip)
+        m = tl.meta
+        click.echo(f"    {clip.name}: {tl.duration:.0f}s, {m['scenes']} scenes, {m['pgo_cuts']} PGO cuts, "
+                   f"{'narrated' if m['narrated'] else 'subtitles only'} ({time.time() - t0:.0f}s)")
+    whole = concat(clips, out / f"{stem}.mp4") if len(clips) > 1 else clips[0]
+    click.echo(f"Wrote {len(clips)} clips and {whole} ({images.generated} new images, cache {images.dir})")
 
 
 @main.group()

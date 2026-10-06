@@ -86,3 +86,13 @@ def test_player_data(tmp_path):
     assert n["episodes"][0]["pgo"] == [{"position": 0.4, "kind": "scene_transition"}]
     html = write_player([p], tmp_path / "player.html").read_text(encoding="utf-8")
     assert html.startswith("<!doctype html>") and "/*__PLAYER__*/" not in html
+    assert n["episodes"][0]["video"] is None
+
+    clips = tmp_path / "video" / "2026-10-06_s1"
+    clips.mkdir(parents=True)
+    (clips / "c2_REM_early_0156.mp4").write_bytes(b"mp4")
+    page = tmp_path / "site" / "player.html"
+    write_player([p], page, tmp_path / "video")
+    (n,) = build_player([p], tmp_path / "video")
+    assert n["episodes"][0]["video"] == "videos/2026-10-06_s1/c2_REM_early_0156.mp4"
+    assert (page.parent / "videos" / "2026-10-06_s1" / "c2_REM_early_0156.mp4").read_bytes() == b"mp4"

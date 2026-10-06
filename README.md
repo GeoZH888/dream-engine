@@ -40,6 +40,7 @@ dream study --nights 20 --date 2026-10-06           # 20 seeds → rate → eval
 
 dream space outputs/nights/2026-10-06*.json outputs/study/2026-10-06_s*.json  # → outputs/viewer/space.html (3D)
 dream player outputs/nights/2026-10-06*.json outputs/study/2026-10-06_s*.json # → outputs/viewer/player.html (film)
+dream video outputs/nights/2026-10-06.json         # REM dreams → MP4 (SD-Turbo scenes, subtitles, narration)
 dream view outputs/nights/2026-10-06*.json outputs/study/2026-10-06_s*.json   # → outputs/viewer/index.html (--fragment for hosts that add their own <html>)
 
 dream eeg fetch                                     # Sleep-EDF subset (config eeg.subjects / recordings)
@@ -52,6 +53,10 @@ dream night --date 2026-10-06 --hypnogram data/eeg/heldout/4001.csv   # dreams f
 `*PSG.edf` (staged by the trained model). `dream eeg train` writes out-of-fold
 hypnograms to `data/eeg/heldout/`: each one was staged by a model that never saw
 that subject, so it is an honest stand-in for a new person's night.
+
+`dream video` needs `pip install -e ".[video]"` and ffmpeg; the first run downloads SD-Turbo
+(~2.5 GB, research licence). It runs on CPU (about 30 s per image), and narration uses the
+Windows speech engine (`--no-voice` for subtitles only).
 
 Offline / no API key: `--extractor heuristic` and `--embedder hashing` for ingest,
 `--dry-run` for nights. A database is bound to one embedder.
@@ -75,6 +80,7 @@ Day logs: markdown/text (`- 19:10 Walked across Ponte Vecchio…`, date from a
 | `viewer/` | — | One self-contained HTML page: clickable hypnogram with PGO ticks, episode list, report, rated bizarreness with evidence, and the full trace per episode |
 | `viewer/space.*` | — | 3D memory space: fragments placed by meaning (metric MDS on cosine distance), each dream drawn as a path; play a night episode by episode |
 | `viewer/player.*` | — | Dream player: each report unfolds as subtitles over generative visuals (hue = valence, speed = arousal, look = stage), hard cuts at PGO bursts, optional narration |
+| `video/` | Visual cortex, made literal | Image prompts → scene images (SD-Turbo, local, cached) → MP4 with slow push-ins, crossfades, hard cuts + flashes at PGO bursts, subtitles and Windows narration; opens in the dream player |
 | `eeg/` | Polysomnography | Sleep-EDF → band-pass, 30-s epochs → δ/θ/α/σ/β power, Hjorth, spindle density, EOG features (±2-epoch context) → LightGBM → W/N1/N2/N3/REM; hypnogram → cycles (one per REM period) → night |
 
 Every stochastic choice is seeded: the same `(date, seed)` gives the same seeds;

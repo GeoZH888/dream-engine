@@ -59,6 +59,10 @@ select option, select optgroup { background: #12161e; color: var(--ink); }
 body.watching .top, body.watching .dock { opacity: 0.08; }
 body.watching .top:hover, body.watching .dock:hover, body.watching .dock:focus-within { opacity: 1; }
 @media (max-width: 560px) { .subs { bottom: 30%; } .links { display: none; } }
+.vid { position: absolute; inset: 0; background: rgba(3, 4, 7, 0.94); display: grid; place-items: center; padding: 16px; z-index: 5; }
+.vid video { width: min(100%, 1280px); max-height: calc(100% - 64px); aspect-ratio: 16 / 9; background: #000; border-radius: 6px; }
+.vid .close { position: absolute; top: calc(env(safe-area-inset-top, 0px) + 12px); right: 14px; }
+button.film { border-color: var(--pgo); }
 </style>
 
 <div class="cinema" id="cinema">
@@ -80,6 +84,10 @@ body.watching .top:hover, body.watching .dock:hover, body.watching .dock:focus-w
 
   <div class="card" id="card"><div><h1 id="card-title"></h1><p id="card-sub"></p></div></div>
   <div class="subs" id="subs" aria-live="polite"></div>
+  <div class="vid" id="vid" hidden>
+    <video id="video" controls playsinline preload="none"></video>
+    <button class="close" id="vid-close">✕ Close video</button>
+  </div>
 
   <div class="dock">
     <div class="hyp" id="hyp" aria-label="Where this dream sits in the night"></div>
@@ -88,6 +96,7 @@ body.watching .top:hover, body.watching .dock:hover, body.watching .dock:focus-w
       <button id="prev" aria-label="Previous dream">⏮</button>
       <button id="next" aria-label="Next dream">⏭</button>
       <span class="count" id="count"></span>
+      <button class="film" id="film" hidden>🎬 Watch video</button>
       <span class="grow"></span>
       <label class="count" for="night">Night</label>
       <select id="night"></select>
@@ -213,6 +222,7 @@ function renderSlate() {
   $("night-label").textContent = n.label;
   $("slate").textContent = `${profileName(ep.profile)} · cycle ${ep.cycle} · ${ep.clock}`;
   $("count").textContent = `dream ${qi + 1} / ${queue.length}`;
+  $("film").hidden = !ep.video;
   drawHyp();
 }
 function drawHyp() {
@@ -297,6 +307,15 @@ else { $("voice").disabled = true; $("voice").textContent = "Narration unavailab
 
 // ---------------- controls ----------------
 $("play").addEventListener("click", () => (playing ? stop() : play()));
+function closeVideo() { const v = $("video"); v.pause(); $("vid").hidden = true; }
+$("film").addEventListener("click", () => {
+  const ep = currentEp(); if (!ep.video) return;
+  stop(); const v = $("video");
+  if (v.getAttribute("src") !== ep.video) v.src = ep.video;
+  $("vid").hidden = false; v.play().catch(() => {});
+});
+$("vid-close").addEventListener("click", closeVideo);
+$("video").addEventListener("ended", closeVideo);
 $("prev").addEventListener("click", () => step(-1));
 $("next").addEventListener("click", () => step(1));
 $("voice").addEventListener("click", () => {
@@ -318,6 +337,7 @@ $("night").replaceChildren(...groups.map(g => {
 $("night").addEventListener("change", (ev) => { stop(); nightIdx = Number(ev.target.value); qi = 0; buildQueue(); loadEpisode(true); showFirstLine(); });
 document.addEventListener("keydown", (ev) => {
   if (ev.target.closest("select")) return;
+  if (!$("vid").hidden) { if (ev.key === "Escape") closeVideo(); return; }
   if (ev.key === " ") { ev.preventDefault(); playing ? stop() : play(); }
   else if (ev.key === "ArrowRight") step(1);
   else if (ev.key === "ArrowLeft") step(-1);

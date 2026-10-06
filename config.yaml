@@ -179,3 +179,29 @@ eeg:
   smoothing_epochs: 3           # mode filter on epoch labels before building segments
   rem_cycle_gap_minutes: 15     # REM periods closer than this belong to the same cycle
   min_final_cycle_minutes: 30   # sleep after the last REM forms its own cycle only if this long
+
+# --- video/ : dreams rendered as MP4 (scene images + subtitles + narration) ---
+video:
+  out_dir: outputs/video
+  stages: [REM]                 # which episodes get a video by default (REM, N2, N3)
+  backend: sd-turbo             # local, free; images cached by prompt
+  model: stabilityai/sd-turbo
+  weights_variant: fp16         # download the half-size weights (upcast to float32 on load)
+  image_size: [768, 432]        # generation size (multiples of 8)
+  steps: 1                      # SD-Turbo works in 1-4 steps
+  frame_size: [1280, 720]
+  fps: 24
+  crf: 20                       # x264 quality (lower = better, larger)
+  ken_burns_zoom: 0.12          # slow push-in per scene
+  crossfade_s: 0.9              # between scenes, unless a PGO burst cuts hard
+  flash_s: 0.3                  # white flash on a PGO cut
+  title_s: 2.6
+  tail_s: 1.6
+  sentence_gap_s: 0.35          # pause between narrated sentences
+  reading_wps: 2.6              # subtitle pace when narration is off
+  subtitle_fade_s: 0.35
+  subtitle_px: 38
+  voice: "Microsoft Hazel Desktop"   # Windows speech voice; null = no narration
+  voice_rate: -2                # -10 (slow) .. 10 (fast)
+  font: "C:/Windows/Fonts/georgia.ttf"
+  font_italic: "C:/Windows/Fonts/georgiai.ttf"
