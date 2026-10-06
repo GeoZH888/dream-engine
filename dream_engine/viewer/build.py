@@ -1,0 +1,48 @@
+"""Phase 5: bundle night JSON files into one self-contained HTML viewer.
+
+The page has no server and no external data: the nights are embedded in the HTML,
+so the file can be opened locally or published as a shareable page.
+"""
+
+from __future__ import annotations
+
+import json
+import re
+from pathlib import Path
+from typing import Any
+
+TEMPLATE = Path(__file__).with_name("template.html")
+PLACEHOLDER = "/*__NIGHTS__*/[]"
+
+
+def night_label(night: dict[str, Any]) -> str:
+    src = night.get("hypnogram_source", "simulated")
+    if src == "simulated":
+        return f"{night['night_id']} · simulated · seed {night['seed']}"
+    m = re.search(r"(SC)?4\d{3}", src)
+    return f"{night['night_id']} · EEG {('SC' + m.group(0).removeprefix('SC')) if m else 'recording'}"
+
+
+GROUP_NAMES = {"nights": "Featured nights", "study": "20-night study"}
+
+
+def build_viewer(nights: list[dict[str, Any]], groups: list[str] | None = None) -> str:
+    """``groups`` (one per night) sorts nights into sections of the night picker."""
+    slim = []
+    for i, n in enumerate(nights):
+        n = {k: v for k, v in n.items() if k != "config"}  # tuning snapshot is not shown
+        n["label"] = night_label(n)
+        n["group"] = groups[i] if groups else "Nights"
+        slim.append(n)
+    data = json.dumps(slim, ensure_ascii=False).replace("</", "<\\/")  # never close the <script> early
+    html = TEMPLATE.read_text(encoding="utf-8")
+    assert PLACEHOLDER in html
+    return html.replace(PLACEHOLDER, data)
+
+
+def write_viewer(night_files: list[Path], out: Path) -> Path:
+    nights = [json.loads(p.read_text(encoding="utf-8")) for p in night_files]
+    groups = [GROUP_NAMES.get(p.parent.name, p.parent.name) for p in night_files]
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(build_viewer(nights, groups), encoding="utf-8")
+    return out

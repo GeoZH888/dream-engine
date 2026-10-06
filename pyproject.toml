@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dream-engine"
+version = "0.1.0"
+description = "Generate dreams by simulating the mechanisms the brain uses to make them."
+requires-python = ">=3.11"
+dependencies = [
+    "anthropic>=0.109",
+    "click>=8.1",
+    "numpy>=1.26",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+embeddings = ["sentence-transformers>=3.0"]
+dev = ["pytest>=8"]
+
+[project.scripts]
+dream = "dream_engine.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["dream_engine*"]
+
+[tool.setuptools.package-data]
+"dream_engine.viewer" = ["template.html"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = [".", "tests"]
