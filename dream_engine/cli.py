@@ -364,6 +364,18 @@ def space(obj: dict, night_files: tuple[str, ...], out_path: str) -> None:
     click.echo(f"Wrote {out} ({out.stat().st_size // 1024} KB, {len(frags)} memories, {len(night_files)} nights)")
 
 
+@main.command()
+@click.argument("night_files", nargs=-1, required=True, type=click.Path(exists=True, dir_okay=False))
+@click.option("--out", "out_path", type=click.Path(dir_okay=False), default="outputs/viewer/player.html",
+              show_default=True)
+def player(night_files: tuple[str, ...], out_path: str) -> None:
+    """Dream player: watch each dream like a short film, with optional narration."""
+    from dream_engine.viewer.player import write_player
+
+    out = write_player([Path(p) for p in night_files], Path(out_path))
+    click.echo(f"Wrote {out} ({out.stat().st_size // 1024} KB, {len(night_files)} nights)")
+
+
 @main.group()
 def eeg() -> None:
     """Phase 4: real sleep staging on Sleep-EDF."""

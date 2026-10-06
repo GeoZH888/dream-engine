@@ -1,0 +1,332 @@
+<title>Dream Player</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;1,6..72,300;1,6..72,400&family=Public+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a full-screen cinema. Generative canvas behind, the report as subtitles in the lower third,
+   a thin hypnogram playhead along the bottom, controls in a bar that fades while a dream plays.
+   Deliberately dark in every theme: this page is a screening room. */
+:root {
+  --bg: #07090d; --ink: #eef1f6; --muted: #9aa5b6; --rule: rgba(238, 241, 246, 0.16); --bar: rgba(10, 13, 19, 0.72);
+  --wake: #c9a46a; --n1: #9db7d6; --n2: #6f95cf; --n3: #3d5ea8; --rem: #f0617f; --pgo: #f09a52;
+  --font-display: "Newsreader", "Iowan Old Style", Georgia, serif;
+  --font-body: "Public Sans", "Segoe UI", system-ui, sans-serif;
+  --font-data: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.5 var(--font-body); overflow: hidden; }
+:focus-visible { outline: 2px solid var(--rem); outline-offset: 2px; }
+.cinema { position: fixed; inset: 0; }
+canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.flash { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; }
+.vignette { position: absolute; inset: 0; pointer-events: none; background: radial-gradient(ellipse at center, transparent 45%, rgba(0,0,0,.55) 100%); }
+
+.top { position: absolute; left: 0; right: 0; top: 0; padding: calc(env(safe-area-inset-top, 0px) + 14px) 18px 0;
+       display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 16px; align-items: start; transition: opacity .6s; }
+.slate { display: grid; gap: 2px; text-shadow: 0 1px 8px rgba(0,0,0,.6); }
+.eyebrow { font: 500 11px/1.3 var(--font-data); text-transform: uppercase; letter-spacing: 0.14em; color: var(--muted); }
+.slate b { font: 600 15px/1.3 var(--font-body); }
+.links { display: flex; gap: 14px; font: 12px var(--font-data); }
+.links a { color: var(--muted); }
+.pgo-tag { font: 500 11px var(--font-data); letter-spacing: .1em; text-transform: uppercase; color: var(--pgo); opacity: 0; transition: opacity .3s; }
+
+.subs { position: absolute; left: 50%; bottom: 24%; transform: translateX(-50%); width: min(880px, calc(100% - 32px));
+        text-align: center; pointer-events: none; min-height: 6em; display: grid; align-items: end; }
+.line { grid-area: 1 / 1; font: 400 clamp(20px, 2.9vw, 34px)/1.4 var(--font-display); text-wrap: balance;
+        text-shadow: 0 2px 18px rgba(0,0,0,.85), 0 0 2px rgba(0,0,0,.6); opacity: 0; transition: opacity 1.1s ease, filter 1.4s ease; filter: blur(6px); }
+.line.on { opacity: 1; filter: blur(0); }
+.line.nrem { font-style: italic; font-weight: 300; color: #d9dee8; }
+
+.card { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; padding: 24px; pointer-events: none; transition: opacity .9s; }
+.card h1 { margin: 0; font: italic 400 clamp(30px, 5vw, 56px)/1.1 var(--font-display); text-wrap: balance; text-shadow: 0 2px 24px rgba(0,0,0,.8); }
+.card p { margin: 10px 0 0; color: var(--muted); font: 13px var(--font-data); letter-spacing: .06em; }
+
+.dock { position: absolute; left: 0; right: 0; bottom: 0; padding: 10px 16px calc(env(safe-area-inset-bottom, 0px) + 12px);
+        background: linear-gradient(transparent, var(--bar) 35%); display: grid; gap: 10px; transition: opacity .6s; }
+.hyp { position: relative; height: 26px; }
+.hyp svg { width: 100%; height: 26px; display: block; }
+.controls { display: flex; flex-wrap: wrap; gap: 8px 10px; align-items: center; }
+.controls .grow { flex: 1 1 auto; }
+button, select { font: 13px var(--font-body); color: var(--ink); background: rgba(255,255,255,.07); border: 1px solid var(--rule); border-radius: 8px; padding: 7px 11px; cursor: pointer; }
+button:hover, select:hover { background: rgba(255,255,255,.13); }
+button.primary { background: var(--ink); color: var(--bg); border-color: var(--ink); font-weight: 600; min-width: 92px; }
+button[aria-pressed="true"] { border-color: var(--ink); }
+select { max-width: min(100%, 340px); min-width: 0; }
+select option, select optgroup { background: #12161e; color: var(--ink); }
+.count { font: 12px var(--font-data); color: var(--muted); font-variant-numeric: tabular-nums; }
+body.watching .top, body.watching .dock { opacity: 0.08; }
+body.watching .top:hover, body.watching .dock:hover, body.watching .dock:focus-within { opacity: 1; }
+@media (max-width: 560px) { .subs { bottom: 30%; } .links { display: none; } }
+</style>
+
+<div class="cinema" id="cinema">
+  <canvas id="c" aria-hidden="true"></canvas>
+  <div class="vignette"></div>
+  <div class="flash" id="flash"></div>
+
+  <div class="top">
+    <div class="slate">
+      <span class="eyebrow" id="night-label">Dream Engine</span>
+      <b id="slate">Dream player</b>
+      <span class="pgo-tag" id="pgo-tag">PGO burst · scene cut</span>
+    </div>
+    <nav class="links" aria-label="Other views">
+      <a href="index.html">Night viewer</a>
+      <a href="space.html">3D memory space</a>
+    </nav>
+  </div>
+
+  <div class="card" id="card"><div><h1 id="card-title"></h1><p id="card-sub"></p></div></div>
+  <div class="subs" id="subs" aria-live="polite"></div>
+
+  <div class="dock">
+    <div class="hyp" id="hyp" aria-label="Where this dream sits in the night"></div>
+    <div class="controls">
+      <button class="primary" id="play">▶ Play</button>
+      <button id="prev" aria-label="Previous dream">⏮</button>
+      <button id="next" aria-label="Next dream">⏭</button>
+      <span class="count" id="count"></span>
+      <span class="grow"></span>
+      <label class="count" for="night">Night</label>
+      <select id="night"></select>
+      <select id="which" aria-label="Which dreams to play">
+        <option value="all">All dreams</option>
+        <option value="REM" selected>REM dreams only</option>
+      </select>
+      <button id="voice" aria-pressed="false">🔈 Narration off</button>
+      <select id="speed" aria-label="Reading speed">
+        <option value="0.8">Slow</option><option value="1" selected>Normal</option><option value="1.35">Fast</option>
+      </select>
+      <button id="fs" aria-label="Full screen">⛶</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const NIGHTS = /*__PLAYER__*/[];
+const $ = (id) => document.getElementById(id);
+const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const STAGE_COLOR = { W: "--wake", N1: "--n1", N2: "--n2", N3: "--n3", REM: "--rem" };
+const cssVar = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+let nightIdx = 0, queue = [], qi = 0, playing = false, voiceOn = false, timer = null, lineIdx = -1, sentences = [], cuts = new Set();
+
+// ---------------- visuals: drifting light, coloured by emotion, paced by stage ----------------
+const STAGE_LOOK = {      // saturation, base speed, blob count, trail (lower = longer trails), brightness
+  N2:        { sat: 22, speed: 0.25, blobs: 5, trail: 0.06, light: 46 },
+  N3:        { sat: 12, speed: 0.10, blobs: 3, trail: 0.03, light: 32 },
+  REM_early: { sat: 62, speed: 0.55, blobs: 8, trail: 0.10, light: 56 },
+  REM_late:  { sat: 76, speed: 0.80, blobs: 10, trail: 0.12, light: 60 },
+};
+const lerp = (a, b, t) => a + (b - a) * t;
+function hues(v) {  // negative valence: blue/indigo; neutral: teal-grey; positive: amber/rose
+  return v < 0 ? [lerp(195, 222, -v), lerp(245, 272, -v)] : [lerp(195, 34, v), lerp(245, 342, v)];
+}
+const canvas = $("c"), ctx = canvas.getContext("2d");
+let W = 0, H = 0, DPR = 1;
+let look = { h1: 200, h2: 250, sat: 20, speed: 0.2, light: 40, trail: 0.05, arousal: 0.3 }, target = { ...look };
+let blobs = [], motes = [];
+function resize() {
+  DPR = Math.min(devicePixelRatio || 1, 2); W = innerWidth; H = innerHeight;
+  canvas.width = W * DPR; canvas.height = H * DPR; ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  ctx.fillStyle = cssVar("--bg"); ctx.fillRect(0, 0, W, H);
+  if (blobs.length) seedBlobs(blobs.length);  // spread the light over the new frame (window resize, full screen)
+}
+addEventListener("resize", resize);
+function seedBlobs(n) {
+  blobs = Array.from({ length: n }, (_, i) => ({ x: Math.random() * W, y: Math.random() * H, r: lerp(0.18, 0.42, Math.random()) * Math.max(W, H),
+    a: Math.random() * Math.PI * 2, w: lerp(0.3, 1.2, Math.random()) * (Math.random() < 0.5 ? -1 : 1), hue: i % 2 }));
+  motes = Array.from({ length: 140 }, () => ({ x: Math.random() * W, y: Math.random() * H, z: Math.random() }));
+}
+function setLook(ep, hardCut) {
+  const s = STAGE_LOOK[ep.profile] || STAGE_LOOK.N2;
+  const [h1, h2] = hues(ep.tone.valence);
+  target = { h1, h2, sat: s.sat * (0.6 + 0.6 * ep.tone.arousal), speed: s.speed * (0.5 + ep.tone.arousal), light: s.light,
+             trail: s.trail, arousal: ep.tone.arousal };
+  if (blobs.length !== s.blobs || hardCut) seedBlobs(s.blobs);
+}
+function cut() {  // a PGO burst: the scene is torn and redrawn
+  seedBlobs(blobs.length || 6);
+  const [a, b] = [target.h1, target.h2]; target.h1 = b; target.h2 = (a + 40) % 360; look.h1 = target.h1; look.h2 = target.h2;
+  if (!reduceMotion) { const f = $("flash"); f.style.transition = "none"; f.style.opacity = 0.32; requestAnimationFrame(() => { f.style.transition = "opacity .7s"; f.style.opacity = 0; }); }
+  const tag = $("pgo-tag"); tag.style.opacity = 1; setTimeout(() => tag.style.opacity = 0, 1600);
+}
+let last = performance.now();
+function frame(t) {
+  const dt = Math.min(50, t - last) / 1000; last = t;
+  for (const k of ["sat", "speed", "light", "trail", "arousal"]) look[k] = lerp(look[k], target[k], 0.02);
+  for (const k of ["h1", "h2"]) { let d = ((target[k] - look[k] + 540) % 360) - 180; look[k] = (look[k] + d * 0.02 + 360) % 360; }
+  const sp = reduceMotion ? look.speed * 0.25 : look.speed;
+  ctx.globalCompositeOperation = "source-over";
+  ctx.fillStyle = `rgba(7, 9, 13, ${look.trail})`; ctx.fillRect(0, 0, W, H);
+  ctx.globalCompositeOperation = "lighter";
+  for (const b of blobs) {
+    b.a += b.w * sp * dt * 0.6;
+    b.x += Math.cos(b.a) * sp * 60 * dt; b.y += Math.sin(b.a * 0.8) * sp * 45 * dt;
+    if (b.x < -b.r) b.x = W + b.r; if (b.x > W + b.r) b.x = -b.r; if (b.y < -b.r) b.y = H + b.r; if (b.y > H + b.r) b.y = -b.r;
+    const hue = b.hue ? look.h2 : look.h1;
+    const g = ctx.createRadialGradient(b.x, b.y, 0, b.x, b.y, b.r);
+    g.addColorStop(0, `hsla(${hue}, ${look.sat}%, ${look.light}%, ${0.09 + 0.11 * look.arousal})`);
+    g.addColorStop(1, `hsla(${hue}, ${look.sat}%, ${look.light}%, 0)`);
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.fillStyle = `hsla(${look.h1}, ${look.sat}%, 85%, 0.5)`;
+  for (const m of motes) {
+    m.y -= (8 + 30 * m.z) * sp * dt; m.x += Math.sin(t / 1500 + m.z * 9) * 6 * sp * dt;
+    if (m.y < 0) { m.y = H; m.x = Math.random() * W; }
+    ctx.globalAlpha = 0.15 + 0.5 * m.z; ctx.fillRect(m.x, m.y, 1 + m.z * 1.4, 1 + m.z * 1.4);
+  }
+  ctx.globalAlpha = 1;
+  requestAnimationFrame(frame);
+}
+
+// ---------------- the film ----------------
+function splitSentences(text) {
+  const raw = text.replace(/\s+/g, " ").trim().split(/(?<=[.!?…])\s+(?=[A-Z“"'‘(])/);
+  const out = [];
+  for (const s of raw) {   // very long sentences are cut at a comma so subtitles stay readable
+    const words = s.split(" ");
+    if (words.length <= 34) { out.push(s); continue; }
+    let buf = [];
+    for (const w of words) { buf.push(w); if (buf.length >= 18 && /[,;:]$/.test(w)) { out.push(buf.join(" ")); buf = []; } }
+    if (buf.length) out.push(buf.join(" "));
+  }
+  return out;
+}
+function currentEp() { return NIGHTS[nightIdx].episodes[queue[qi]]; }
+function buildQueue() {
+  const which = $("which").value, eps = NIGHTS[nightIdx].episodes;
+  queue = eps.map((e, i) => [e, i]).filter(([e]) => which === "all" || e.stage === "REM").map(([, i]) => i);
+  if (!queue.length) queue = eps.map((_, i) => i);
+  qi = Math.min(qi, queue.length - 1);
+}
+function profileName(p) { return { N2: "N2 · light sleep", N3: "N3 · deep sleep", REM_early: "REM · early night", REM_late: "REM · late night" }[p] || p; }
+function showCard(ep) {
+  $("card-title").textContent = profileName(ep.profile);
+  $("card-sub").textContent = `cycle ${ep.cycle} · ${ep.clock}` + (ep.bizarreness != null ? ` · bizarreness ${ep.bizarreness.toFixed(2)}` : "") + (ep.lucid ? " · lucid" : "");
+  $("card").style.opacity = 1;
+}
+function hideCard() { $("card").style.opacity = 0; }
+function renderSlate() {
+  const n = NIGHTS[nightIdx], ep = currentEp();
+  $("night-label").textContent = n.label;
+  $("slate").textContent = `${profileName(ep.profile)} · cycle ${ep.cycle} · ${ep.clock}`;
+  $("count").textContent = `dream ${qi + 1} / ${queue.length}`;
+  drawHyp();
+}
+function drawHyp() {
+  const n = NIGHTS[nightIdx], segs = n.hypnogram, total = segs[segs.length - 1][1], ep = currentEp();
+  const rows = { W: 0, REM: 1, N1: 2, N2: 3, N3: 4 }, Wd = 1000, Hd = 26;
+  const x = (m) => (m / total) * Wd, y = (s) => 2 + rows[s] * 4.6;
+  let svg = `<svg viewBox="0 0 ${Wd} ${Hd}" preserveAspectRatio="none" role="img" aria-label="Night hypnogram with the current dream marked">`;
+  for (const [a, b, s] of segs) svg += `<rect x="${x(a)}" y="${y(s)}" width="${Math.max(0.8, x(b) - x(a))}" height="3.6" fill="var(${STAGE_COLOR[s]})" opacity="0.75"/>`;
+  const seg = segs.find(([a, , s]) => a === ep.minute && s === ep.stage) || [ep.minute, ep.minute + 3];
+  svg += `<rect x="${x(seg[0]) - 1}" y="0" width="${Math.max(3, x(seg[1]) - x(seg[0]) + 2)}" height="${Hd}" fill="#fff" opacity="0.18"/>`;
+  svg += `<rect x="${x(ep.minute) - 1}" y="0" width="2.2" height="${Hd}" fill="#fff"/></svg>`;
+  $("hyp").innerHTML = svg;
+}
+function loadEpisode(withCard) {
+  clearTimeout(timer); window.speechSynthesis?.cancel();
+  const ep = currentEp();
+  sentences = splitSentences(ep.narrative);
+  cuts = new Set(ep.pgo.map(p => Math.min(sentences.length - 1, Math.max(1, Math.round(p.position * sentences.length)))));
+  lineIdx = -1;
+  $("subs").replaceChildren(...sentences.map(s => { const d = document.createElement("div"); d.className = "line" + (ep.stage === "REM" ? "" : " nrem"); d.textContent = s; return d; }));
+  setLook(ep, true); renderSlate();
+  if (withCard) showCard(ep); else hideCard();
+}
+function showLine(i) {
+  const lines = $("subs").children;
+  [...lines].forEach((l, k) => l.classList.toggle("on", k === i));
+  if (cuts.has(i)) cut();
+}
+function wordsDelay(s) {
+  const wps = 2.7 * Number($("speed").value);
+  return Math.max(2300, (s.split(" ").length / wps) * 1000 + 900);
+}
+function advance() {
+  if (!playing) return;
+  lineIdx += 1;
+  if (lineIdx >= sentences.length) {        // dream over: fade out, then the next one
+    showLine(-1);
+    timer = setTimeout(() => {
+      if (qi < queue.length - 1) { qi += 1; startEpisode(); } else { stop(); showCard({ ...currentEp(), profile: "N2", cycle: "–" }); $("card-title").textContent = "Morning"; $("card-sub").textContent = "the night is over · press play to watch it again"; qi = 0; }
+    }, 2200);
+    return;
+  }
+  hideCard(); showLine(lineIdx);
+  const s = sentences[lineIdx];
+  if (voiceOn && "speechSynthesis" in window) {
+    const u = new SpeechSynthesisUtterance(s);
+    const ep = currentEp();
+    u.rate = 0.92 * Number($("speed").value); u.pitch = ep.stage === "REM" ? 1 : 0.85; u.volume = 1;
+    const v = pickVoice(); if (v) u.voice = v;
+    u.onend = () => { timer = setTimeout(advance, 450); };
+    u.onerror = () => { timer = setTimeout(advance, wordsDelay(s)); };
+    speechSynthesis.speak(u);
+  } else timer = setTimeout(advance, wordsDelay(s));
+}
+function startEpisode() {
+  loadEpisode(true);
+  timer = setTimeout(() => { hideCard(); advance(); }, 2600);
+}
+function play() {
+  playing = true; document.body.classList.add("watching"); $("play").textContent = "❚❚ Pause";
+  if (lineIdx < 0) startEpisode(); else advance();
+}
+function stop() {
+  playing = false; document.body.classList.remove("watching"); $("play").textContent = "▶ Play";
+  clearTimeout(timer); window.speechSynthesis?.cancel();
+}
+function step(d) {
+  const was = playing; stop();
+  qi = Math.max(0, Math.min(queue.length - 1, qi + d));
+  loadEpisode(true); showFirstLine();
+  if (was) play();
+}
+function showFirstLine() { $("subs").children[0]?.classList.add("on"); }  // the resting frame shows the opening line
+let voices = [];
+function pickVoice() {
+  if (!voices.length) voices = speechSynthesis.getVoices();
+  const en = voices.filter(v => /^en/i.test(v.lang));
+  return en.find(v => /natural|neural|aria|jenny|samantha|daniel|serena/i.test(v.name)) || en[0] || null;
+}
+if ("speechSynthesis" in window) speechSynthesis.onvoiceschanged = () => { voices = speechSynthesis.getVoices(); };
+else { $("voice").disabled = true; $("voice").textContent = "Narration unavailable"; }
+
+// ---------------- controls ----------------
+$("play").addEventListener("click", () => (playing ? stop() : play()));
+$("prev").addEventListener("click", () => step(-1));
+$("next").addEventListener("click", () => step(1));
+$("voice").addEventListener("click", () => {
+  voiceOn = !voiceOn; $("voice").setAttribute("aria-pressed", String(voiceOn));
+  $("voice").textContent = voiceOn ? "🔊 Narration on" : "🔈 Narration off";
+  if (!voiceOn) window.speechSynthesis?.cancel();
+});
+$("which").addEventListener("change", () => { stop(); qi = 0; buildQueue(); loadEpisode(true); showFirstLine(); });
+$("fs").addEventListener("click", () => {
+  const el = $("cinema");
+  (document.fullscreenElement ? document.exitFullscreen() : el.requestFullscreen?.())?.catch?.(() => {});
+});
+const groups = [...new Set(NIGHTS.map(n => n.group))];
+$("night").replaceChildren(...groups.map(g => {
+  const og = document.createElement("optgroup"); og.label = g;
+  NIGHTS.forEach((n, i) => { if (n.group === g) { const o = document.createElement("option"); o.value = i; o.textContent = n.label; og.append(o); } });
+  return og;
+}));
+$("night").addEventListener("change", (ev) => { stop(); nightIdx = Number(ev.target.value); qi = 0; buildQueue(); loadEpisode(true); showFirstLine(); });
+document.addEventListener("keydown", (ev) => {
+  if (ev.target.closest("select")) return;
+  if (ev.key === " ") { ev.preventDefault(); playing ? stop() : play(); }
+  else if (ev.key === "ArrowRight") step(1);
+  else if (ev.key === "ArrowLeft") step(-1);
+  else if (ev.key === "f") $("fs").click();
+});
+document.addEventListener("visibilitychange", () => { if (document.hidden && playing) stop(); });
+
+resize();
+if (NIGHTS.length) { buildQueue(); loadEpisode(true); showFirstLine(); }
+else { $("card-title").textContent = "No dreams in this file"; $("card-sub").textContent = "build it with: dream player outputs/nights/<date>.json"; }
+requestAnimationFrame(frame);
+</script>

@@ -65,3 +65,24 @@ def test_space_projection_and_paths(tmp_path):
     assert e["steps"] == [pytest.approx(round(float(1 - emb[0] @ emb[1]), 3))]
     assert e["extras"] == [{"id": "f2", "role": "augment", "from": "f0"}]
     assert d["nights"][0]["group"] == "Featured nights" and len(d["fragments"]) == 3
+
+
+def test_player_data(tmp_path):
+    from dream_engine.viewer.player import build_player, write_player
+
+    ep = {"cycle": 2, "stage": "REM", "profile": "REM_early", "clock_time": "01:56", "minute_start": 176,
+          "narrative": "I run. I fly.", "emotional_tone": {"valence": -0.2, "arousal": 0.8}, "operators_applied": ["scene_jump"],
+          "lucid": False, "bizarreness_score": 0.6,
+          "trace": {"pgo_events": [{"minute": 180.0, "position": 0.4, "kind": "scene_transition"}]}}
+    failed = {**ep, "narrative": None}
+    p = tmp_path / "study" / "2026-10-06_s1.json"
+    p.parent.mkdir()
+    p.write_text(json.dumps({"night_id": "2026-10-06", "seed": 1, "sleep_onset": "2026-10-05T23:00",
+                             "hypnogram": [{"minute_start": 0, "minute_end": 200, "stage": "N2", "cycle": 1}],
+                             "episodes": [ep, failed]}), encoding="utf-8")
+    (n,) = build_player([p])
+    assert n["group"] == "20-night study" and n["hypnogram"] == [[0, 200, "N2"]]
+    assert len(n["episodes"]) == 1                          # failed episodes are skipped
+    assert n["episodes"][0]["pgo"] == [{"position": 0.4, "kind": "scene_transition"}]
+    html = write_player([p], tmp_path / "player.html").read_text(encoding="utf-8")
+    assert html.startswith("<!doctype html>") and "/*__PLAYER__*/" not in html
