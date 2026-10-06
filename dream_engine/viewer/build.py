@@ -26,8 +26,18 @@ def night_label(night: dict[str, Any]) -> str:
 GROUP_NAMES = {"nights": "Featured nights", "study": "20-night study"}
 
 
-def build_viewer(nights: list[dict[str, Any]], groups: list[str] | None = None) -> str:
-    """``groups`` (one per night) sorts nights into sections of the night picker."""
+STANDALONE_HEAD = ('<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n'
+                   '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">\n'
+                   '</head>\n<body>\n')
+STANDALONE_TAIL = "\n</body>\n</html>\n"
+
+
+def build_viewer(nights: list[dict[str, Any]], groups: list[str] | None = None, standalone: bool = True) -> str:
+    """``groups`` (one per night) sorts nights into sections of the night picker.
+
+    ``standalone`` wraps the page in a full HTML document (for opening locally or static
+    hosting); ``False`` returns the bare fragment, for hosts that add their own skeleton.
+    """
     slim = []
     for i, n in enumerate(nights):
         n = {k: v for k, v in n.items() if k != "config"}  # tuning snapshot is not shown
@@ -37,12 +47,13 @@ def build_viewer(nights: list[dict[str, Any]], groups: list[str] | None = None) 
     data = json.dumps(slim, ensure_ascii=False).replace("</", "<\\/")  # never close the <script> early
     html = TEMPLATE.read_text(encoding="utf-8")
     assert PLACEHOLDER in html
-    return html.replace(PLACEHOLDER, data)
+    html = html.replace(PLACEHOLDER, data)
+    return STANDALONE_HEAD + html + STANDALONE_TAIL if standalone else html
 
 
-def write_viewer(night_files: list[Path], out: Path) -> Path:
+def write_viewer(night_files: list[Path], out: Path, standalone: bool = True) -> Path:
     nights = [json.loads(p.read_text(encoding="utf-8")) for p in night_files]
     groups = [GROUP_NAMES.get(p.parent.name, p.parent.name) for p in night_files]
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(build_viewer(nights, groups), encoding="utf-8")
+    out.write_text(build_viewer(nights, groups, standalone), encoding="utf-8")
     return out

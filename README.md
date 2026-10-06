@@ -7,6 +7,10 @@ See [DREAM_ENGINE_SPEC.md](DREAM_ENGINE_SPEC.md) for the scientific model.
 
 **Status: Phases 1–5** (ingest, memory, replay · scheduler, noise, narrator · eval, visual prompts · EEG staging · web viewer).
 
+**[Explore the nights →](https://dream-engine-nights.netlify.app)** 22 generated nights (one driven by
+real EEG staging, plus the 20-night study): click through the hypnogram, read each dream, and
+see why every element appeared.
+
 ## Setup
 
 ```bash
@@ -32,7 +36,7 @@ dream episode --stage REM --cycle 4 --date 2026-10-06    # the same episode `nig
 dream eval outputs/nights/2026-10-06.json           # blind bizarreness rating + separability
 dream study --nights 20 --date 2026-10-06           # 20 seeds → rate → eval (phase 3 acceptance)
 
-dream view outputs/nights/2026-10-06.json outputs/nights/2026-10-06.4001.json   # → outputs/viewer/nights.html
+dream view outputs/nights/2026-10-06*.json outputs/study/2026-10-06_s*.json   # → outputs/viewer/nights.html (--fragment for hosts that add their own <html>)
 
 dream eeg fetch                                     # Sleep-EDF subset (config eeg.subjects / recordings)
 dream eeg train                                     # features → LightGBM, CV grouped by subject

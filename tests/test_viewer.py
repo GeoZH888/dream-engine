@@ -24,3 +24,10 @@ def test_viewer_embeds_nights_safely():
 def test_night_labels():
     assert night_label(_night()) == "2026-10-06 · simulated · seed 42"
     assert night_label(_night("hypnogram CSV 4001.csv")) == "2026-10-06 · EEG SC4001"
+
+
+def test_standalone_and_fragment():
+    full = build_viewer([_night()])
+    assert full.startswith("<!doctype html>") and full.rstrip().endswith("</html>")
+    frag = build_viewer([_night()], standalone=False)
+    assert frag.startswith("<title>") and "<!doctype" not in frag

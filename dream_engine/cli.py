@@ -336,12 +336,13 @@ def study(obj: dict, n_nights: int | None, night, seed: int | None, out_dir) -> 
 @click.argument("night_files", nargs=-1, required=True, type=click.Path(exists=True, dir_okay=False))
 @click.option("--out", "out_path", type=click.Path(dir_okay=False), default="outputs/viewer/nights.html",
               show_default=True)
+@click.option("--fragment", is_flag=True, help="Omit the <html>/<head>/<body> wrapper (for hosts that add their own).")
 @click.pass_obj
-def view(obj: dict, night_files: tuple[str, ...], out_path: str) -> None:
+def view(obj: dict, night_files: tuple[str, ...], out_path: str, fragment: bool) -> None:
     """Bundle night JSON files into one self-contained HTML viewer (phase 5)."""
     from dream_engine.viewer.build import write_viewer
 
-    out = write_viewer([Path(p) for p in night_files], Path(out_path))
+    out = write_viewer([Path(p) for p in night_files], Path(out_path), standalone=not fragment)
     click.echo(f"Wrote {out} ({out.stat().st_size // 1024} KB, {len(night_files)} nights)")
 
 
