@@ -1,0 +1,355 @@
+<title>Dream Memory Space</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,600;1,6..72,400&family=Public+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a control column (night, dreams, selected memory) beside a full-height 3D memory space. */
+:root {
+  --bg: #f2f4f7; --panel: #ffffff; --ink: #18202c; --muted: #5d6878; --rule: #d8dde5; --space: #e9edf3;
+  --n2: #5b7fb0; --n3: #253f73; --rem: #cf3f62; --pgo: #e8873a; --aug: #2f7d5b;
+  --neg: #3d7fa6; --neu: #a7b0bd; --pos: #d98b3a;
+  --font-display: "Newsreader", "Iowan Old Style", Georgia, serif;
+  --font-body: "Public Sans", "Segoe UI", system-ui, sans-serif;
+  --font-data: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f141c; --panel: #171e29; --ink: #dfe5ee; --muted: #93a0b3; --rule: #2a3444; --space: #0b0f16;
+    --n2: #6f95cf; --n3: #a9b9e6; --rem: #f0617f; --pgo: #f09a52; --aug: #5cbf90;
+    --neg: #5aa6d6; --neu: #6b7687; --pos: #f0a75a; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f141c; --panel: #171e29; --ink: #dfe5ee; --muted: #93a0b3; --rule: #2a3444; --space: #0b0f16;
+  --n2: #6f95cf; --n3: #a9b9e6; --rem: #f0617f; --pgo: #f09a52; --aug: #5cbf90;
+  --neg: #5aa6d6; --neu: #6b7687; --pos: #f0a75a; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.5 var(--font-body); }
+.app { display: grid; grid-template-columns: minmax(280px, 360px) minmax(0, 1fr); height: 100%; }
+@media (max-width: 860px) { .app { grid-template-columns: minmax(0, 1fr); grid-template-rows: 62vh auto; height: auto; } .stage-wrap { order: -1; } }
+aside { overflow-y: auto; padding-inline: 18px; padding-block: 18px 28px; display: grid; gap: 18px; align-content: start; border-right: 1px solid var(--rule); background: var(--panel); }
+@media (max-width: 860px) { aside { border-right: 0; border-top: 1px solid var(--rule); } }
+h1 { margin: 0; font: 600 26px/1.15 var(--font-display); text-wrap: balance; }
+h2 { margin: 0; font: 600 12px/1.3 var(--font-body); text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+.eyebrow { font: 500 11px/1.3 var(--font-data); text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); }
+.muted { color: var(--muted); }
+.data { font-family: var(--font-data); font-size: 12px; font-variant-numeric: tabular-nums; }
+a { color: inherit; }
+:focus-visible { outline: 2px solid var(--rem); outline-offset: 2px; }
+select, button { font: inherit; color: var(--ink); }
+select { width: 100%; background: var(--panel); border: 1px solid var(--rule); border-radius: 8px; padding: 7px 9px; }
+.row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.btn { border: 1px solid var(--rule); background: var(--panel); border-radius: 8px; padding: 6px 11px; cursor: pointer; font-size: 13px; }
+.btn[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.stat { display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; font-size: 13px; }
+.stat b { font: 600 15px var(--font-data); font-variant-numeric: tabular-nums; text-align: right; }
+.eps { display: grid; gap: 2px; max-height: 300px; overflow-y: auto; margin: 0; padding: 0; list-style: none; }
+@media (max-width: 860px) { .eps { max-height: none; } }
+.ep { width: 100%; display: grid; grid-template-columns: 8px 46px minmax(0, 1fr) auto; gap: 8px; align-items: center; text-align: left;
+      border: 1px solid transparent; background: transparent; border-radius: 7px; padding: 5px 8px 5px 6px; cursor: pointer; }
+.ep:hover { border-color: var(--rule); }
+.ep[aria-current="true"] { border-color: var(--ink); }
+.ep i { width: 8px; height: 22px; border-radius: 3px; }
+.ep span.t { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 12.5px; }
+.card { border: 1px solid var(--rule); border-radius: 10px; padding: 12px 14px; display: grid; gap: 6px; }
+.card p { margin: 0; font: 400 16px/1.5 var(--font-display); }
+.legend { display: grid; gap: 5px; font-size: 12.5px; }
+.legend span { display: flex; align-items: center; gap: 8px; }
+.sw { width: 18px; height: 0; border-top: 3px solid; }
+.sw.dash { border-top-style: dashed; }
+.dot { width: 11px; height: 11px; border-radius: 50%; display: inline-block; }
+.grad { width: 70px; height: 9px; border-radius: 5px; background: linear-gradient(90deg, var(--neg), var(--neu), var(--pos)); }
+.stage-wrap { position: relative; min-width: 0; min-height: 0; background: var(--space); }
+canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+.hud { position: absolute; left: 14px; top: 12px; right: 14px; display: flex; flex-wrap: wrap; gap: 6px 16px; justify-content: space-between; pointer-events: none; }
+.hud > * { pointer-events: auto; }
+.badge { background: var(--panel); border: 1px solid var(--rule); border-radius: 8px; padding: 6px 10px; font-size: 12.5px; max-width: min(520px, 100%); }
+.tip { position: absolute; pointer-events: none; background: var(--panel); border: 1px solid var(--rule); border-radius: 8px; padding: 7px 10px;
+       max-width: 300px; font-size: 12.5px; box-shadow: 0 4px 14px rgba(0,0,0,.12); }
+.err { position: absolute; inset: 0; display: grid; place-items: center; padding: 24px; text-align: center; color: var(--muted); }
+footer { font-size: 12px; color: var(--muted); }
+</style>
+
+<div class="app">
+  <aside>
+    <div style="display:grid;gap:6px">
+      <span class="eyebrow">Dream Engine · memory space</span>
+      <h1>Where the dreams travel</h1>
+      <span class="muted">Each point is a memory from the day logs, placed by meaning: related memories sit close together.
+        Each dream is a path through them, in the order replay picked them.</span>
+      <a class="data" href="index.html">← Back to the night viewer</a>
+    </div>
+
+    <div style="display:grid;gap:8px">
+      <h2><label for="night">Night</label></h2>
+      <select id="night"></select>
+      <div class="row" role="group" aria-label="Which dreams to draw">
+        <button class="btn" data-show="all" aria-pressed="true">All dreams</button>
+        <button class="btn" data-show="REM" aria-pressed="false">REM only</button>
+        <button class="btn" data-show="NREM" aria-pressed="false">NREM only</button>
+      </div>
+      <div class="row">
+        <button class="btn" id="play">▶ Play the night</button>
+        <span class="data muted" id="clock"></span>
+      </div>
+    </div>
+
+    <div class="stat" id="stats"></div>
+
+    <div style="display:grid;gap:8px">
+      <h2>Dreams in this night</h2>
+      <ul class="eps" id="eps"></ul>
+    </div>
+
+    <div class="card" id="memcard" hidden></div>
+
+    <div style="display:grid;gap:8px">
+      <h2>Key</h2>
+      <div class="legend">
+        <span><i class="sw" style="border-color:var(--rem)"></i>REM dream path</span>
+        <span><i class="sw" style="border-color:var(--n2)"></i>NREM dream path (N2)</span>
+        <span><i class="sw dash" style="border-color:var(--aug)"></i>Noisy recall (embedding noise)</span>
+        <span><i class="dot" style="background:transparent;border:2px solid var(--pgo)"></i>PGO intrusion (random memory)</span>
+        <span><i class="grad"></i>memory valence: negative → positive</span>
+        <span class="muted">Point size = arousal. Drag to rotate, scroll or pinch to zoom.</span>
+      </div>
+    </div>
+    <footer id="foot"></footer>
+  </aside>
+
+  <div class="stage-wrap" id="stage">
+    <canvas id="c" aria-label="3D map of memories with dream paths"></canvas>
+    <div class="hud"><div class="badge" id="hud"></div></div>
+    <div class="tip" id="tip" hidden></div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+const DATA = /*__SPACE__*/{};
+const $ = (id) => document.getElementById(id);
+const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const STAGE_VAR = { N2: "--n2", N3: "--n3", REM: "--rem" };
+const fmt = (x, d = 2) => (x == null ? "–" : Number(x).toFixed(d));
+const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+let nightIdx = 0, epIdx = -1, show = "all", playing = null;
+
+function el(tag, attrs = {}, ...kids) {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (v == null || v === false) continue;
+    if (k.startsWith("on")) e.addEventListener(k.slice(2), v); else if (k === "style") Object.assign(e.style, v); else e.setAttribute(k, v);
+  }
+  for (const k of kids.flat()) if (k != null && k !== false) e.append(k.nodeType ? k : document.createTextNode(String(k)));
+  return e;
+}
+
+if (typeof THREE === "undefined" || !THREE.OrbitControls) {
+  $("stage").append(el("div", { class: "err" }, "The 3D library could not load. Check your connection and reload the page."));
+  throw new Error("three.js unavailable");
+}
+
+// ---------- scene ----------
+const canvas = $("c");
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 500);
+camera.position.set(17, 11, 21);
+const controls = new THREE.OrbitControls(camera, canvas);
+controls.enableDamping = true; controls.autoRotate = !reduceMotion; controls.autoRotateSpeed = 0.5;
+controls.addEventListener("start", () => { controls.autoRotate = false; });
+
+const color = (v) => new THREE.Color(css(v));
+function valenceColor(v) {
+  const neg = color("--neg"), neu = color("--neu"), pos = color("--pos");
+  return v < 0 ? neu.clone().lerp(neg, Math.min(1, -v)) : neu.clone().lerp(pos, Math.min(1, v));
+}
+
+const fragById = Object.fromEntries(DATA.fragments.map(f => [f.id, f]));
+const pos = (id) => new THREE.Vector3(...fragById[id].xyz);
+const sphereGeo = new THREE.SphereGeometry(1, 24, 16);
+const points = DATA.fragments.map(f => {
+  const m = new THREE.Mesh(sphereGeo, new THREE.MeshBasicMaterial({ color: valenceColor(f.valence) }));
+  const r = 0.28 + 0.42 * f.arousal;
+  m.scale.setScalar(r); m.position.copy(pos(f.id)); m.userData = { frag: f, r };
+  scene.add(m); return m;
+});
+const ringGeo = new THREE.TorusGeometry(1, 0.08, 8, 40);
+const pathGroup = new THREE.Group(); scene.add(pathGroup);
+const markGroup = new THREE.Group(); scene.add(markGroup);
+
+function curve(a, b, lift) {
+  // a gentle arc between two memories, so paths read as jumps rather than straight chords
+  const mid = a.clone().add(b).multiplyScalar(0.5);
+  mid.add(new THREE.Vector3(0, 1, 0).multiplyScalar(lift + a.distanceTo(b) * 0.12));
+  return new THREE.QuadraticBezierCurve3(a, mid, b).getPoints(28);
+}
+function line(pts, col, opacity, dashed) {
+  const g = new THREE.BufferGeometry().setFromPoints(pts);
+  const mat = dashed ? new THREE.LineDashedMaterial({ color: col, dashSize: 0.35, gapSize: 0.25, transparent: true, opacity })
+                     : new THREE.LineBasicMaterial({ color: col, transparent: true, opacity });
+  const l = new THREE.Line(g, mat); if (dashed) l.computeLineDistances(); return l;
+}
+function visible(e) { return show === "all" || (show === "REM" ? e.stage === "REM" : e.stage !== "REM"); }
+
+function drawPaths(progress = 1) {
+  pathGroup.clear(); markGroup.clear();
+  const eps = DATA.nights[nightIdx].episodes;
+  eps.forEach((e, i) => {
+    if (!visible(e)) return;
+    const focus = epIdx < 0 || i === epIdx;
+    const col = color(STAGE_VAR[e.stage] || "--n2");
+    const op = focus ? 0.95 : 0.12;
+    const segs = [];
+    for (let k = 1; k < e.chain.length; k++) segs.push(curve(pos(e.chain[k - 1]), pos(e.chain[k]), 0.4 + 0.25 * k));
+    let pts = segs.flat();
+    if (i === epIdx && progress < 1) pts = pts.slice(0, Math.max(2, Math.floor(pts.length * progress)));
+    if (pts.length > 1) pathGroup.add(line(pts, col, op, false));
+    if (!focus) return;
+    e.extras.forEach(x => {
+      if (x.role === "augment" && x.from && fragById[x.from]) pathGroup.add(line(curve(pos(x.from), pos(x.id), 0.2), color("--aug"), 0.9, true));
+      if (x.role === "pgo_injection") {
+        const ring = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color: color("--pgo") }));
+        ring.position.copy(pos(x.id)); ring.scale.setScalar(points.find(p => p.userData.frag.id === x.id).userData.r + 0.35);
+        ring.userData.spin = true; markGroup.add(ring);
+      }
+    });
+    if (e.chain.length) {
+      const start = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color: col }));
+      start.position.copy(pos(e.chain[0])); start.scale.setScalar(points.find(p => p.userData.frag.id === e.chain[0]).userData.r + 0.25);
+      start.userData.face = true; markGroup.add(start);
+    }
+  });
+  points.forEach(p => {
+    const inEp = epIdx >= 0 && (() => { const e = eps[epIdx]; return e.chain.includes(p.userData.frag.id) || e.extras.some(x => x.id === p.userData.frag.id); })();
+    p.material.transparent = true; p.material.opacity = epIdx < 0 || inEp ? 1 : 0.35;
+  });
+}
+
+// ---------- side panel ----------
+function mean(a) { return a.length ? a.reduce((x, y) => x + y, 0) / a.length : null; }
+function renderStats() {
+  const eps = DATA.nights[nightIdx].episodes;
+  const steps = (pred) => eps.filter(pred).flatMap(e => e.steps);
+  const rem = steps(e => e.stage === "REM"), nrem = steps(e => e.stage !== "REM");
+  $("stats").replaceChildren(
+    el("span", {}, "Mean jump between memories, REM"), el("b", { style: { color: "var(--rem)" } }, fmt(mean(rem))),
+    el("span", {}, "Mean jump between memories, NREM"), el("b", { style: { color: "var(--n2)" } }, fmt(mean(nrem))),
+    el("span", { class: "muted", style: { gridColumn: "1 / -1", fontSize: "12px" } },
+      "Cosine distance in the full 384-dimension meaning space (0 = same meaning). REM replay is built to jump further: related, but not the nearest memory."));
+}
+function renderEpisodes() {
+  const eps = DATA.nights[nightIdx].episodes;
+  $("eps").replaceChildren(...eps.map((e, i) => el("li", {}, el("button", {
+    class: "ep", "aria-current": String(i === epIdx), hidden: !visible(e), onclick: () => selectEp(i === epIdx ? -1 : i) },
+    el("i", { style: { background: `var(${STAGE_VAR[e.stage]})` } }),
+    el("span", { class: "data" }, e.clock),
+    el("span", { class: "t" }, `${e.profile.replace("_", " ")} · ${e.chain.length} memories`),
+    el("span", { class: "data muted" }, e.steps.length ? fmt(mean(e.steps)) : "–")))));
+}
+function renderHud() {
+  const n = DATA.nights[nightIdx];
+  if (epIdx < 0) { $("hud").textContent = `${n.label} · ${n.episodes.length} dreams · click a dream or a memory`; return; }
+  const e = n.episodes[epIdx];
+  $("hud").replaceChildren(el("b", {}, `${e.profile.replace("_", " ")} · cycle ${e.cycle} · ${e.clock}`), " ",
+    el("span", { class: "muted" }, e.bizarreness != null ? `bizarreness ${fmt(e.bizarreness)}` : ""),
+    e.first ? el("div", { class: "muted", style: { fontFamily: "var(--font-display)", fontStyle: "italic", marginTop: "2px" } }, `“${e.first}…”`) : null);
+  $("clock").textContent = e.clock;
+}
+function showMemory(f) {
+  const card = $("memcard");
+  if (!f) { card.hidden = true; return; }
+  const eps = DATA.nights[nightIdx].episodes.filter(e => e.chain.includes(f.id) || e.extras.some(x => x.id === f.id));
+  card.hidden = false;
+  card.replaceChildren(el("span", { class: "eyebrow" }, `${f.id} · ${f.type} · ${f.date}`), el("p", {}, f.text),
+    el("span", { class: "data muted" }, `valence ${f.valence >= 0 ? "+" : ""}${fmt(f.valence)} · arousal ${fmt(f.arousal)}`),
+    el("span", { class: "muted", style: { fontSize: "12.5px" } }, eps.length ? `Appears in ${eps.length} dream${eps.length > 1 ? "s" : ""} tonight: ` +
+      eps.map(e => `${e.profile.replace("_", " ")} ${e.clock}`).join(", ") : "Not dreamed tonight."));
+}
+
+let anim = null;
+function selectEp(i) {
+  epIdx = i; renderEpisodes(); renderHud();
+  if (i < 0 || reduceMotion) { drawPaths(1); return; }
+  const t0 = performance.now();
+  cancelAnimationFrame(anim);
+  const step = (t) => { const p = Math.min(1, (t - t0) / 1100); drawPaths(p); if (p < 1) anim = requestAnimationFrame(step); };
+  anim = requestAnimationFrame(step);
+}
+function setNight(i) {
+  stop(); nightIdx = i; epIdx = -1; renderStats(); renderEpisodes(); renderHud(); drawPaths(); showMemory(null); $("clock").textContent = "";
+}
+function stop() { clearInterval(playing); playing = null; $("play").textContent = "▶ Play the night"; }
+$("play").addEventListener("click", () => {
+  if (playing) { stop(); return; }
+  const eps = DATA.nights[nightIdx].episodes.map((e, i) => [e, i]).filter(([e]) => visible(e)).map(([, i]) => i);
+  if (!eps.length) return;
+  let k = Math.max(0, eps.indexOf(epIdx) + 1) % eps.length;
+  $("play").textContent = "❚❚ Pause";
+  selectEp(eps[k]);
+  playing = setInterval(() => { k += 1; if (k >= eps.length) { stop(); return; } selectEp(eps[k]); }, 2600);
+});
+document.querySelectorAll("[data-show]").forEach(b => b.addEventListener("click", () => {
+  show = b.dataset.show; document.querySelectorAll("[data-show]").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+  if (epIdx >= 0 && !visible(DATA.nights[nightIdx].episodes[epIdx])) epIdx = -1;
+  renderEpisodes(); renderHud(); drawPaths();
+}));
+const groups = [...new Set(DATA.nights.map(n => n.group))];
+$("night").replaceChildren(...groups.map(g => el("optgroup", { label: g },
+  ...DATA.nights.map((n, i) => [n, i]).filter(([n]) => n.group === g).map(([n, i]) => el("option", { value: i }, n.label)))));
+$("night").addEventListener("change", (ev) => setNight(Number(ev.target.value)));
+$("foot").textContent = `${DATA.fragments.length} memories · ${DATA.embedder} embeddings · ${DATA.projection.method}; 3D distances keep the order of the true distances with rank correlation ${fmt(DATA.projection.rank_correlation)}, so the layout is approximate. Simulated content, not real dreams.`;
+
+// ---------- picking ----------
+const ray = new THREE.Raycaster(), mouse = new THREE.Vector2();
+function pick(ev) {
+  const r = canvas.getBoundingClientRect();
+  mouse.set(((ev.clientX - r.left) / r.width) * 2 - 1, -((ev.clientY - r.top) / r.height) * 2 + 1);
+  ray.setFromCamera(mouse, camera);
+  const hit = ray.intersectObjects(points)[0];
+  return hit ? hit.object.userData.frag : null;
+}
+canvas.addEventListener("pointermove", (ev) => {
+  const f = pick(ev), tip = $("tip");
+  canvas.style.cursor = f ? "pointer" : "grab";
+  if (!f) { tip.hidden = true; return; }
+  const r = canvas.getBoundingClientRect();
+  tip.hidden = false; tip.textContent = f.text;
+  tip.style.left = Math.min(ev.clientX - r.left + 14, r.width - 310) + "px"; tip.style.top = (ev.clientY - r.top + 14) + "px";
+});
+canvas.addEventListener("pointerleave", () => { $("tip").hidden = true; });
+let down = null;
+canvas.addEventListener("pointerdown", (ev) => { down = [ev.clientX, ev.clientY]; });
+canvas.addEventListener("pointerup", (ev) => {
+  if (!down || Math.hypot(ev.clientX - down[0], ev.clientY - down[1]) > 5) return;
+  showMemory(pick(ev));
+});
+
+// ---------- theme + resize + loop ----------
+function applyTheme() {
+  scene.background = color("--space");
+  points.forEach(p => p.material.color = valenceColor(p.userData.frag.valence));
+  drawPaths();
+}
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", applyTheme);
+new MutationObserver(applyTheme).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+function resize() {
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  if (canvas.width !== Math.floor(w * renderer.getPixelRatio()) || canvas.height !== Math.floor(h * renderer.getPixelRatio())) {
+    renderer.setSize(w, h, false); camera.aspect = w / Math.max(h, 1); camera.updateProjectionMatrix();
+  }
+}
+function loop(t) {
+  resize(); controls.update();
+  markGroup.children.forEach(m => { if (m.userData.spin && !reduceMotion) m.rotation.y = t / 600; m.lookAt(camera.position); if (m.userData.spin && !reduceMotion) m.rotateZ(t / 900); });
+  renderer.render(scene, camera); requestAnimationFrame(loop);
+}
+applyTheme(); setNight(0); requestAnimationFrame(loop);
+const firstRem = DATA.nights[0].episodes.findIndex(e => e.stage === "REM" && e.profile === "REM_late");
+if (firstRem >= 0) selectEp(firstRem);
+</script>

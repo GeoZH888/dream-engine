@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 
+import pytest
+
 from dream_engine.viewer.build import build_viewer, night_label
 
 
@@ -31,3 +33,35 @@ def test_standalone_and_fragment():
     assert full.startswith("<!doctype html>") and full.rstrip().endswith("</html>")
     frag = build_viewer([_night()], standalone=False)
     assert frag.startswith("<title>") and "<!doctype" not in frag
+
+
+def test_space_projection_and_paths(tmp_path):
+    from datetime import datetime
+
+    import numpy as np
+
+    from conftest import frag
+    from dream_engine.viewer.space import build_space, project_3d
+
+    rng = np.random.default_rng(0)
+    emb = rng.normal(size=(12, 16))
+    emb /= np.linalg.norm(emb, axis=1, keepdims=True)
+    xyz, rho = project_3d(emb, seed=0)
+    assert xyz.shape == (12, 3) and np.abs(xyz).max() == pytest.approx(10.0) and rho > 0.5
+
+    frags = [frag(f"f{i}", datetime(2026, 10, 5, 9 + i), emb=emb[i]) for i in range(3)]
+    ep = {"cycle": 1, "stage": "REM", "profile": "REM_early", "clock_time": "00:30", "minute_start": 90,
+          "operators_applied": [], "bizarreness_score": 0.5, "narrative": "I run. Then I fly.",
+          "trace": {"replay": [{"step": 1, "fragment_id": "f1", "mode": "association"},
+                               {"step": 0, "fragment_id": "f0", "mode": "seed"}],
+                    "fragments": [{"id": "f0", "role": "replay", "trace": {}}, {"id": "f1", "role": "replay", "trace": {}},
+                                  {"id": "f2", "role": "augment", "trace": {"source_fragment": "f0"}}]}}
+    p = tmp_path / "nights" / "2026-10-06.json"
+    p.parent.mkdir()
+    p.write_text(json.dumps({"night_id": "2026-10-06", "seed": 1, "episodes": [ep]}), encoding="utf-8")
+    d = build_space(frags, [p], seed=0, embedder="test")
+    e = d["nights"][0]["episodes"][0]
+    assert e["chain"] == ["f0", "f1"]                       # replay order, not trace order
+    assert e["steps"] == [pytest.approx(round(float(1 - emb[0] @ emb[1]), 3))]
+    assert e["extras"] == [{"id": "f2", "role": "augment", "from": "f0"}]
+    assert d["nights"][0]["group"] == "Featured nights" and len(d["fragments"]) == 3

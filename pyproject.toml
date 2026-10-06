@@ -25,7 +25,7 @@ dream = "dream_engine.cli:main"
 include = ["dream_engine*"]
 
 [tool.setuptools.package-data]
-"dream_engine.viewer" = ["template.html"]
+"dream_engine.viewer" = ["template.html", "space.html"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

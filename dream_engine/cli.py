@@ -334,7 +334,7 @@ def study(obj: dict, n_nights: int | None, night, seed: int | None, out_dir) -> 
 
 @main.command()
 @click.argument("night_files", nargs=-1, required=True, type=click.Path(exists=True, dir_okay=False))
-@click.option("--out", "out_path", type=click.Path(dir_okay=False), default="outputs/viewer/nights.html",
+@click.option("--out", "out_path", type=click.Path(dir_okay=False), default="outputs/viewer/index.html",
               show_default=True)
 @click.option("--fragment", is_flag=True, help="Omit the <html>/<head>/<body> wrapper (for hosts that add their own).")
 @click.pass_obj
@@ -344,6 +344,24 @@ def view(obj: dict, night_files: tuple[str, ...], out_path: str, fragment: bool)
 
     out = write_viewer([Path(p) for p in night_files], Path(out_path), standalone=not fragment)
     click.echo(f"Wrote {out} ({out.stat().st_size // 1024} KB, {len(night_files)} nights)")
+
+
+@main.command()
+@click.argument("night_files", nargs=-1, required=True, type=click.Path(exists=True, dir_okay=False))
+@click.option("--out", "out_path", type=click.Path(dir_okay=False), default="outputs/viewer/space.html",
+              show_default=True)
+@click.pass_obj
+def space(obj: dict, night_files: tuple[str, ...], out_path: str) -> None:
+    """3D memory space: memories placed by meaning, each dream drawn as a path through them."""
+    from dream_engine.viewer.space import write_space
+
+    cfg = obj["cfg"]
+    with MemoryStore(obj["db"]) as store:
+        frags, embedder = store.all(), store.embedder_name
+    if not frags:
+        raise click.ClickException("Memory store is empty; run `dream ingest` first.")
+    out = write_space(frags, [Path(p) for p in night_files], Path(out_path), cfg["seed"], embedder or "?")
+    click.echo(f"Wrote {out} ({out.stat().st_size // 1024} KB, {len(frags)} memories, {len(night_files)} nights)")
 
 
 @main.group()

@@ -9,7 +9,8 @@ See [DREAM_ENGINE_SPEC.md](DREAM_ENGINE_SPEC.md) for the scientific model.
 
 **[Explore the nights →](https://dream-engine-nights.netlify.app)** 22 generated nights (one driven by
 real EEG staging, plus the 20-night study): click through the hypnogram, read each dream, and
-see why every element appeared.
+see why every element appeared. The [3D memory space](https://dream-engine-nights.netlify.app/space.html)
+shows where each dream travels through the day's memories.
 
 ## Setup
 
@@ -36,7 +37,8 @@ dream episode --stage REM --cycle 4 --date 2026-10-06    # the same episode `nig
 dream eval outputs/nights/2026-10-06.json           # blind bizarreness rating + separability
 dream study --nights 20 --date 2026-10-06           # 20 seeds → rate → eval (phase 3 acceptance)
 
-dream view outputs/nights/2026-10-06*.json outputs/study/2026-10-06_s*.json   # → outputs/viewer/nights.html (--fragment for hosts that add their own <html>)
+dream space outputs/nights/2026-10-06*.json outputs/study/2026-10-06_s*.json  # → outputs/viewer/space.html (3D)
+dream view outputs/nights/2026-10-06*.json outputs/study/2026-10-06_s*.json   # → outputs/viewer/index.html (--fragment for hosts that add their own <html>)
 
 dream eeg fetch                                     # Sleep-EDF subset (config eeg.subjects / recordings)
 dream eeg train                                     # features → LightGBM, CV grouped by subject
@@ -69,6 +71,7 @@ Day logs: markdown/text (`- 19:10 Walked across Ponte Vecchio…`, date from a
 | `visual/prompts.py` | Visual association cortex | 1–3 image prompts per REM episode; `ImageBackend` protocol for later |
 | `eval/` | — | Blind LLM bizarreness rater (discontinuity, incongruity, uncertainty); NREM-vs-REM classifier |
 | `viewer/` | — | One self-contained HTML page: clickable hypnogram with PGO ticks, episode list, report, rated bizarreness with evidence, and the full trace per episode |
+| `viewer/space.*` | — | 3D memory space: fragments placed by meaning (metric MDS on cosine distance), each dream drawn as a path; play a night episode by episode |
 | `eeg/` | Polysomnography | Sleep-EDF → band-pass, 30-s epochs → δ/θ/α/σ/β power, Hjorth, spindle density, EOG features (±2-epoch context) → LightGBM → W/N1/N2/N3/REM; hypnogram → cycles (one per REM period) → night |
 
 Every stochastic choice is seeded: the same `(date, seed)` gives the same seeds;
