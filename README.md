@@ -78,6 +78,7 @@ Day logs: markdown/text (`- 19:10 Walked across Ponte Vecchio…`, date from a
 | `visual/prompts.py` | Visual association cortex | 1–3 image prompts per REM episode; `ImageBackend` protocol for later |
 | `eval/` | — | Blind LLM bizarreness rater (discontinuity, incongruity, uncertainty); NREM-vs-REM classifier |
 | `viewer/` | — | One self-contained HTML page: clickable hypnogram with PGO ticks, episode list, report, rated bizarreness with evidence, and the full trace per episode |
+| `viewer/brain.py`, `viewer/eeg_data.py` | — | Per dream: a brain mechanism map (each region's level from the engine variable that models it; schematic, not a scan) and, for nights driven by a Sleep-EDF recording, the real EEG/EOG from the dream's minutes plus a whole-night spectrogram |
 | `viewer/space.*` | — | 3D memory space: fragments placed by meaning (metric MDS on cosine distance), each dream drawn as a path; play a night episode by episode |
 | `viewer/player.*` | — | Dream player: each report unfolds as subtitles over generative visuals (hue = valence, speed = arousal, look = stage), hard cuts at PGO bursts, optional narration |
 | `video/` | Visual cortex, made literal | Image prompts → scene images (SD-Turbo, local, cached) → MP4 with slow push-ins, crossfades, hard cuts + flashes at PGO bursts, subtitles and Windows narration; opens in the dream player |

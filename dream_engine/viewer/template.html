@@ -112,6 +112,33 @@ svg.hyp .selband { fill: var(--ink); opacity: 0.07; }
 .track { height: 8px; background: var(--bg); border-radius: 4px; overflow: hidden; }
 .fill { height: 100%; background: var(--rem); border-radius: 4px; }
 .fill.prior { background: var(--muted); opacity: 0.6; }
+
+/* brain map + EEG */
+.brainwrap { display: grid; grid-template-columns: minmax(220px, 300px) minmax(0, 1fr); gap: 14px 22px; align-items: center; }
+@media (max-width: 640px) { .brainwrap { grid-template-columns: minmax(0, 1fr); } }
+svg.brain { width: 100%; height: auto; display: block; }
+svg.brain .outline { fill: var(--bg); stroke: var(--muted); stroke-width: 1.4; }
+svg.brain .sulcus { fill: none; stroke: var(--rule); stroke-width: 1.2; }
+svg.brain .cereb { fill: var(--bg); stroke: var(--muted); stroke-width: 1.2; }
+svg.brain .region { cursor: default; transition: opacity .2s; }
+svg.brain .region.dim { opacity: 0.25; }
+svg.brain text { fill: var(--muted); font: 9.5px var(--font-data); }
+.regions { display: grid; gap: 7px; margin: 0; padding: 0; list-style: none; }
+.regions li { display: grid; grid-template-columns: 128px minmax(0, 1fr) 34px; gap: 4px 10px; align-items: center; font-size: 12.5px; }
+.regions li .why { grid-column: 1 / -1; color: var(--muted); font-size: 11.5px; margin-top: -3px; }
+.regions li:hover b { color: var(--rem); }
+.note { font-size: 12px; color: var(--muted); margin: 0; max-width: 78ch; }
+svg.eeg { width: 100%; min-width: 520px; height: auto; display: block; }
+svg.eeg text { fill: var(--muted); font: 10.5px var(--font-data); }
+svg.eeg .grid { stroke: var(--rule); stroke-width: 1; }
+svg.eeg polyline { fill: none; stroke-width: 1; stroke-linejoin: round; }
+.bands { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; max-width: 520px; }
+.bands div { display: grid; gap: 3px; font: 11px var(--font-data); color: var(--muted); }
+.bands .bar { height: 46px; background: var(--bg); border-radius: 4px; display: flex; align-items: flex-end; overflow: hidden; }
+.bands .bar span { width: 100%; background: var(--n2); border-radius: 4px 4px 0 0; }
+.spec-wrap { display: grid; gap: 4px; }
+svg.spec { display: block; width: 100%; min-width: 640px; height: auto; }
+svg.spec text { fill: var(--muted); font: 11px var(--font-data); }
 .evidence { font-size: 12.5px; color: var(--muted); margin: 2px 0 0; }
 .tone { display: grid; grid-template-columns: auto minmax(0,1fr); gap: 14px; align-items: center; }
 svg.tone-plot { width: 92px; height: 92px; }
@@ -164,6 +191,10 @@ footer { font-size: 12px; color: var(--muted); max-width: 80ch; }
       <div class="legend" id="legend"></div>
     </div>
     <div class="hyp-scroll"><svg class="hyp" id="hyp" role="img" aria-label="Sleep stages across the night"></svg></div>
+    <div class="spec-wrap" id="spec-wrap" hidden>
+      <span class="eyebrow" id="spec-label">Real EEG spectrogram</span>
+      <div class="hyp-scroll"><svg class="spec" id="spec" role="img" aria-label="EEG spectrogram across the night"></svg></div>
+    </div>
   </section>
 
   <div class="main">
@@ -188,7 +219,7 @@ const stageColor = (s) => `var(${STAGE_VAR[s] || "--muted"})`;
 let night = 0, current = 0;
 
 function h(tag, attrs = {}, ...kids) {
-  const ns = ["svg", "rect", "line", "path", "circle", "text", "g", "title"].includes(tag) ? "http://www.w3.org/2000/svg" : null;
+  const ns = ["svg", "rect", "line", "path", "circle", "ellipse", "polyline", "image", "text", "g", "title", "defs", "radialGradient", "stop"].includes(tag) ? "http://www.w3.org/2000/svg" : null;
   const el = ns ? document.createElementNS(ns, tag) : document.createElement(tag);
   for (const [k, v] of Object.entries(attrs)) {
     if (v == null || v === false) continue;
@@ -307,6 +338,111 @@ function renderHypnogram() {
       h("title", {}, `${e.profile} · ${e.clock_time}`)));
   });
   svg.replaceChildren(...kids);
+  renderSpectrogram(total, x, sel);
+}
+
+function renderSpectrogram(total, x, sel) {
+  const n = NIGHTS[night], wrap = document.getElementById("spec-wrap"), sp = n.eeg && n.eeg.spectrogram;
+  wrap.hidden = !sp;
+  if (!sp) return;
+  document.getElementById("spec-label").textContent =
+    `Real EEG spectrogram · ${n.eeg.recording} · Fpz-Cz, ${sp.fmin}–${sp.fmax} Hz · bright = more power`;
+  const W = 1000, H = 92, top = 6, hh = 64;
+  const kids = [
+    h("image", { href: sp.png, x: x(0), y: top, width: x(sp.minutes) - x(0), height: hh, preserveAspectRatio: "none" }),
+    h("text", { x: 38, y: top + 9, "text-anchor": "end" }, `${sp.fmax} Hz`),
+    h("text", { x: 38, y: top + hh, "text-anchor": "end" }, `${sp.fmin}`),
+    h("text", { x: x(0), y: H - 4 }, "slow waves (deep sleep) glow along the bottom; REM is darker and broader"),
+  ];
+  if (sel) {
+    const seg = n.hypnogram.find(s => s.minute_start === sel.minute_start && s.stage === sel.stage);
+    if (seg) kids.push(h("rect", { x: x(seg.minute_start) - 1, y: top - 2, width: Math.max(3, x(seg.minute_end) - x(seg.minute_start) + 2),
+      height: hh + 4, fill: "none", stroke: "var(--ink)", "stroke-width": 1.5 }));
+  }
+  const svg = document.getElementById("spec");
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  svg.replaceChildren(...kids);
+}
+
+// ---- brain mechanism map (schematic of the simulation, not a measurement)
+const BRAIN_SHAPES = {   // sagittal view, front of the head on the left
+  prefrontal: { cx: 78, cy: 82, rx: 44, ry: 34, label: [52, 40, "prefrontal"] },
+  visual: { cx: 266, cy: 104, rx: 28, ry: 30, label: [262, 64, "visual"] },
+  thalamus: { cx: 166, cy: 112, rx: 19, ry: 12, label: [166, 97, "thalamus"] },
+  hippocampus: { cx: 196, cy: 140, rx: 26, ry: 8, rot: -14, label: [214, 126, "hippocampus"] },
+  amygdala: { cx: 158, cy: 148, rx: 9, ry: 8, label: [136, 166, "amygdala"] },
+  pons: { cx: 196, cy: 182, rx: 11, ry: 16, label: [222, 196, "pons"] },
+};
+function brainSvg(brain) {
+  const glow = (k, lvl) => {
+    const g = BRAIN_SHAPES[k];
+    return h("g", { class: "region", "data-region": k },
+      h("ellipse", { cx: g.cx, cy: g.cy, rx: g.rx * (1 + 0.35 * lvl), ry: g.ry * (1 + 0.35 * lvl), fill: "url(#glow)",
+        opacity: 0.15 + 0.85 * lvl, transform: g.rot ? `rotate(${g.rot} ${g.cx} ${g.cy})` : null }),
+      h("ellipse", { cx: g.cx, cy: g.cy, rx: g.rx, ry: g.ry, fill: "none", stroke: "var(--rem)", "stroke-opacity": 0.25 + 0.6 * lvl,
+        "stroke-dasharray": "3 3", transform: g.rot ? `rotate(${g.rot} ${g.cx} ${g.cy})` : null }),
+      h("text", { x: g.label[0], y: g.label[1], "text-anchor": "middle" }, g.label[2]),
+      h("title", {}, `${brain[k].name}: ${fmt(lvl)} · ${brain[k].why}`));
+  };
+  return h("svg", { class: "brain", viewBox: "0 0 320 222", role: "img", "aria-label": "Brain mechanism map" },
+    h("defs", {}, h("radialGradient", { id: "glow" }, h("stop", { offset: "0%", "stop-color": "var(--rem)", "stop-opacity": 0.95 }),
+      h("stop", { offset: "70%", "stop-color": "var(--rem)", "stop-opacity": 0.35 }), h("stop", { offset: "100%", "stop-color": "var(--rem)", "stop-opacity": 0 }))),
+    h("ellipse", { class: "cereb", cx: 252, cy: 166, rx: 32, ry: 19 }),
+    h("path", { class: "outline", d: "M40 122 C30 70 82 30 150 28 C222 24 288 46 296 98 C302 128 290 150 264 152 C246 150 226 156 212 160 C206 176 202 196 202 214 L186 214 C186 194 184 176 176 164 C142 168 102 166 76 160 C52 154 42 140 40 122 Z" }),
+    h("path", { class: "sulcus", d: "M120 34 C126 60 118 84 128 104 M182 30 C176 58 190 76 182 100 M232 40 C224 66 240 84 228 106 M60 110 C90 118 120 126 150 128" }),
+    ...Object.keys(BRAIN_SHAPES).map(k => glow(k, brain[k].level)));
+}
+function brainBlock(e) {
+  if (!e.brain) return null;
+  const order = ["prefrontal", "visual", "hippocampus", "amygdala", "thalamus", "pons"];
+  const list = h("ul", { class: "regions" }, ...order.map(k => {
+    const r = e.brain[k];
+    return h("li", { onmouseenter: () => highlight(k), onmouseleave: () => highlight(null) },
+      h("b", {}, r.name), h("span", { class: "track" }, h("span", { class: "fill", style: { width: `${Math.round(r.level * 100)}%` } })),
+      h("span", { class: "data" }, fmt(r.level)), h("span", { class: "why" }, `${r.role}. Here: ${r.why}.`));
+  }));
+  return h("section", { class: "block" }, h("h3", {}, "Brain mechanism map"),
+    h("div", { class: "brainwrap" }, brainSvg(e.brain), list),
+    h("p", { class: "note" }, "A schematic of the simulation, not a brain scan: each region's level comes from the engine variable that models it. " +
+      "The REM pattern (visual and limbic regions up, prefrontal cortex down) follows sleep neuroimaging studies."));
+}
+function highlight(k) {
+  document.querySelectorAll("svg.brain .region").forEach(g => g.classList.toggle("dim", k != null && g.dataset.region !== k));
+}
+
+// ---- real EEG for this dream
+const EEG_SCALE = { "EEG Fpz-Cz": 120, "EEG Pz-Oz": 120, "EOG horizontal": 300 };   // µV at the row edge
+const EEG_COLOR = { "EEG Fpz-Cz": "var(--n3)", "EEG Pz-Oz": "var(--n2)", "EOG horizontal": "var(--rem)" };
+function eegBlock(n, i) {
+  const e = n.episodes[i];
+  if (!n.eeg) return h("section", { class: "block" }, h("h3", {}, "EEG during this dream"),
+    h("p", { class: "note" }, "This night's sleep stages were simulated, so there is no recording. Choose the EEG SC4001 night to see real brain signals beside each dream."));
+  const x = n.eeg.episodes[i];
+  if (!x) return null;
+  const chans = Object.keys(x.traces), W = 1000, rowH = 70, top = 8, left = 112, H = top + rowH * chans.length + 24;
+  const kids = [];
+  for (let s = 0; s <= x.seconds; s += 5) {
+    const px = left + (s / x.seconds) * (W - left - 10);
+    kids.push(h("line", { class: "grid", x1: px, x2: px, y1: top, y2: H - 20 }), h("text", { x: px, y: H - 6, "text-anchor": "middle" }, `${s} s`));
+  }
+  chans.forEach((c, r) => {
+    const vals = x.traces[c], mid = top + rowH * r + rowH / 2, sc = EEG_SCALE[c] || 150;
+    const pts = vals.map((v, k) => `${(left + (k / (vals.length - 1)) * (W - left - 10)).toFixed(1)},${(mid - Math.max(-1, Math.min(1, v / sc)) * (rowH / 2 - 3)).toFixed(1)}`).join(" ");
+    kids.push(h("text", { x: 6, y: mid - 4 }, c.replace("horizontal", "(eyes)")), h("text", { x: 6, y: mid + 10 }, `±${sc} µV`),
+      h("polyline", { points: pts, stroke: EEG_COLOR[c] || "var(--ink)" }));
+  });
+  const bands = Object.entries(x.band_rel);
+  const stageNote = x.expert_stage && x.expert_stage !== e.stage
+    ? ` The expert scored this 30 s as ${x.expert_stage}; the model that drove the night said ${e.stage}.` : ` Expert-scored as ${x.expert_stage}.`;
+  const what = { REM: "Look for low-voltage, mixed-frequency brain waves and sharp deflections in the eye channel: the rapid eye movements.",
+                 N2: "Look for sleep spindles (short 12–15 Hz bursts) and K-complexes on a moderate background.",
+                 N3: "Look for large, slow delta waves (under 4 Hz): deep slow-wave sleep." }[e.stage] || "";
+  return h("section", { class: "block" }, h("h3", {}, `EEG during this dream · ${n.eeg.recording}`),
+    h("div", { class: "hyp-scroll" }, h("svg", { class: "eeg", viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "Recorded EEG and EOG" }, ...kids)),
+    h("p", { class: "note" }, `30 s recorded at ${clockAt(n, Math.round(x.window_minute))} (minute ${x.window_minute} of the night), from the middle of this dream's sleep segment.${stageNote} ${what}`),
+    h("div", { class: "bands", role: "img", "aria-label": "Relative EEG band power over the dream's segment" },
+      ...bands.map(([b, v]) => h("div", {}, h("span", { class: "bar" }, h("span", { style: { height: `${Math.max(2, v * 100)}%` } })), `${b} ${Math.round(v * 100)}%`))),
+    h("p", { class: "note" }, "The dream's content was not decoded from this signal. The recording decided when the dream happened and which sleep stage it was; the content comes from simulated memory replay."));
 }
 
 function renderList() {
@@ -377,6 +513,8 @@ function renderDetail() {
     e.error ? h("p", { class: "narrative error" }, `Generation failed: ${e.error}`)
             : h("p", { class: "narrative" + (isRem ? "" : " nrem") }, e.narrative),
     h("div", { class: "cols" }, bizBlock, toneBlock),
+    brainBlock(e),
+    eegBlock(n, current),
     h("section", { class: "why" }, h("h3", {}, "Why these elements appeared"),
       h("ul", { class: "frags" }, ...t.fragments.map(f => {
         const [line, formula] = whyLine(f, replayById[f.id]);

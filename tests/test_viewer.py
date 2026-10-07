@@ -96,3 +96,31 @@ def test_player_data(tmp_path):
     (n,) = build_player([p], tmp_path / "video")
     assert n["episodes"][0]["video"] == "videos/2026-10-06_s1/c2_REM_early_0156.mp4"
     assert (page.parent / "videos" / "2026-10-06_s1" / "c2_REM_early_0156.mp4").read_bytes() == b"mp4"
+
+
+def test_brain_map_follows_stage(cfg):
+    from dream_engine.viewer.brain import brain_activity
+
+    frag = lambda i, a, v: {"id": f"f{i}", "role": "replay", "arousal": a, "valence": v}
+    rem = {"stage": "REM", "profile": "REM_late", "lucid": False, "image_prompts": ["a", "b", "c"],
+           "trace": {"fragments": [frag(i, 0.8, -0.6) for i in range(6)], "pgo_events": [{}] * 5}}
+    n2 = {"stage": "N2", "profile": "N2", "image_prompts": [],
+          "trace": {"fragments": [frag(0, 0.2, 0.1)], "pgo_events": []}}
+    r, n = brain_activity(rem, cfg), brain_activity(n2, cfg)
+    assert r["prefrontal"]["level"] < n["prefrontal"]["level"]           # critic off in REM
+    assert r["visual"]["level"] == 1.0 and r["pons"]["level"] == 1.0 and n["pons"]["level"] == 0.0
+    assert r["hippocampus"]["level"] == 1.0 and r["amygdala"]["level"] == pytest.approx(0.7)
+    assert brain_activity({**rem, "lucid": True}, cfg)["prefrontal"]["level"] > r["prefrontal"]["level"]
+    assert all(0 <= v["level"] <= 1 and v["why"] for v in r.values())
+
+
+def test_eeg_only_for_recorded_nights(cfg, tmp_path):
+    from dream_engine.viewer.eeg_data import night_eeg, onset_epoch, recording_for
+
+    assert recording_for({"hypnogram_source": "simulated"}, cfg) is None
+    cfg["eeg"]["data_dir"] = str(tmp_path)
+    assert night_eeg({"hypnogram_source": "hypnogram CSV 4001.csv"}, cfg) is None   # recording not on disk
+    csv_path = tmp_path / "h.csv"
+    csv_path.write_text("epoch,seconds,stage\n" + "".join(f"{i},{i * 30},{s}\n" for i, s in enumerate(
+        ["W", "W", "W", "REM", "W", "W", "N1", "N2", "N2"])), encoding="utf-8")
+    assert onset_epoch(csv_path, cfg) == 6       # a single-epoch flicker is smoothed away

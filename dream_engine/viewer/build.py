@@ -32,17 +32,29 @@ STANDALONE_HEAD = ('<!doctype html>\n<html lang="en">\n<head>\n<meta charset="ut
 STANDALONE_TAIL = "\n</body>\n</html>\n"
 
 
-def build_viewer(nights: list[dict[str, Any]], groups: list[str] | None = None, standalone: bool = True) -> str:
+def build_viewer(nights: list[dict[str, Any]], groups: list[str] | None = None, standalone: bool = True,
+                 cfg: dict[str, Any] | None = None, log=lambda s: None) -> str:
     """``groups`` (one per night) sorts nights into sections of the night picker.
 
     ``standalone`` wraps the page in a full HTML document (for opening locally or static
     hosting); ``False`` returns the bare fragment, for hosts that add their own skeleton.
+    With ``cfg``, each dream gets its brain mechanism map, and nights driven by a
+    Sleep-EDF recording get their real EEG (when the recording is on disk).
     """
     slim = []
     for i, n in enumerate(nights):
         n = {k: v for k, v in n.items() if k != "config"}  # tuning snapshot is not shown
         n["label"] = night_label(n)
         n["group"] = groups[i] if groups else "Nights"
+        if cfg is not None:
+            from dream_engine.viewer.brain import brain_activity
+            from dream_engine.viewer.eeg_data import night_eeg
+
+            for ep in n["episodes"]:
+                ep["brain"] = brain_activity(ep, cfg)
+            n["eeg"] = night_eeg(n, cfg)
+            if n["eeg"]:
+                log(f"  real EEG attached to {n['label']} ({n['eeg']['recording']})")
         slim.append(n)
     data = json.dumps(slim, ensure_ascii=False).replace("</", "<\\/")  # never close the <script> early
     html = TEMPLATE.read_text(encoding="utf-8")
@@ -51,9 +63,10 @@ def build_viewer(nights: list[dict[str, Any]], groups: list[str] | None = None, 
     return STANDALONE_HEAD + html + STANDALONE_TAIL if standalone else html
 
 
-def write_viewer(night_files: list[Path], out: Path, standalone: bool = True) -> Path:
+def write_viewer(night_files: list[Path], out: Path, standalone: bool = True, cfg: dict[str, Any] | None = None,
+                 log=lambda s: None) -> Path:
     nights = [json.loads(p.read_text(encoding="utf-8")) for p in night_files]
     groups = [GROUP_NAMES.get(p.parent.name, p.parent.name) for p in night_files]
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(build_viewer(nights, groups, standalone), encoding="utf-8")
+    out.write_text(build_viewer(nights, groups, standalone, cfg, log), encoding="utf-8")
     return out

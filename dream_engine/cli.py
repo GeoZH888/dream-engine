@@ -342,7 +342,8 @@ def view(obj: dict, night_files: tuple[str, ...], out_path: str, fragment: bool)
     """Bundle night JSON files into one self-contained HTML viewer (phase 5)."""
     from dream_engine.viewer.build import write_viewer
 
-    out = write_viewer([Path(p) for p in night_files], Path(out_path), standalone=not fragment)
+    out = write_viewer([Path(p) for p in night_files], Path(out_path), standalone=not fragment, cfg=obj["cfg"],
+                       log=click.echo)
     click.echo(f"Wrote {out} ({out.stat().st_size // 1024} KB, {len(night_files)} nights)")
 
 
